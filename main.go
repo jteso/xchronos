@@ -33,14 +33,14 @@ func parseFlags() map[string] string {
 func realMain() int{
 	flags := parseFlags()
 
-	a1 := agent.New("agent_1", []string{flags[FLAG_ETCD_NODES]})
-	a2 := agent.New("agent_2", []string{flags[FLAG_ETCD_NODES]})
+	a1 := agent.New("agent_1", []string{flags[FLAG_ETCD_NODES]}, true)
+	a2 := agent.New("agent_2", []string{flags[FLAG_ETCD_NODES]}, true)
 
 	
 	go a1.Run()
 	go a2.Run()
 	
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 	
 	fmt.Println("System halted successfully :)")
 	return 0

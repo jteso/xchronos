@@ -1,4 +1,15 @@
-# SHED
+Key: Leader election
+/xchronos/var/scheduler/election value=<node_id> (TTL:heartbeat)
+
+Dir: Job executors
+/xchronos/etc/executors/<node_id> (TTL:heartbeat)
+
+Dir: Jobs
+/xchronos/etc/jobs/<job_id>
+
+
+
+# Xchronos
 
 It is a distributed and fault-tolerant scheduler that runs on top of a number of job stores (etcd/consul), that can be used for task orchestration.
 
