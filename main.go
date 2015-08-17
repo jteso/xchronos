@@ -41,7 +41,9 @@ func realMain() int{
 	go a2.Run()
 	
 	time.Sleep(10 * time.Second)
-	
+	a1.Stop()
+	a2.Stop()
+
 	fmt.Println("System halted successfully :)")
 	return 0
 }

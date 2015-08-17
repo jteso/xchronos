@@ -1,5 +1,8 @@
 package agent
 
+import(
+	"github.com/jteso/xchronos/task"
+)
 // agentStateFn represents the state of an agent as a function
 // that returns the next state
 type handleStateFn func(*Agent) handleStateFn
@@ -16,7 +19,8 @@ func candidateStateFn(agent *Agent) handleStateFn {
 	leader, err := agent.runForLeader()
 
 	if err != nil {
-		return agent.panic("Error while electing for leadership due to: %s\n", err.Error())
+		agent.lastError = err
+		return errorStateFn
 	}
 	if leader {
 		return leaderStateFn
@@ -27,34 +31,67 @@ func candidateStateFn(agent *Agent) handleStateFn {
 }
 
 func leaderStateFn(agent *Agent) handleStateFn {
+//	defer func(){
+//		agent.StopPublishJobOffers()
+//		agent.StopWatchForJobOffers()
+//
+//	}()
 	agent.changeState("LEADER_STATE")
-	execErrCh := agent.registerAsExecutor()
-	pubJobErrCh := agent.publishJobOffers()
 
-	// agent.PersistCronConf()
-	// agent.PublishJobs(){
-	// 			for job := agent.scheduler(cronConf) {
-	//      		etcd.OfferJob(job, ROUND_ROBIN_POLICY)
-	// 			}
-	//
-	// agent.AcceptJobs()
-	// ready <- agent.ListenForChangeOfLeadership()
-	// agent.StopPublishJobs()
-	// agent.StopAcceptingJobs()
+	// Advertise and renew the roles of this agent in etcd
+	leaderTask := agent.advertiseAndRenewLeaderRoleT()
+	executorTask := agent.advertiseAndRenewExecutorRoleT()
+
+	// Tasks to be done as a scheduler leader
+	//agent.SetupScheduler()
+	jobPublisherTask := agent.publishJobOffersT()
+
+	// Tasks to be done as an executor
+	jobExecutorTask := agent.watchForJobOffersT()
+
+	// Keep the lights on as an agent
+	// agent.WatchForNewLeaderElection
+
 	for {
 		select {
-		case <- execErrCh: return nil
-		case <- pubJobErrCh: return nil
+		case err := <-task.FirstError(
+							agent.ListenUserCancelTask(),
+							leaderTask,
+							jobPublisherTask,
+							executorTask,
+							jobExecutorTask):
+			agent.lastError = err
+			return errorStateFn
 		}
 	}
 
+//		case <- agent.WatchForNewLeaderElection(): return candidateStateFn
+//		case er := <- agent.ErrorReportedInTask(): return nil
+//		case sig := <- agent.SignalReceived(): return nil
 }
 
 func supporterStateFn(agent *Agent) handleStateFn {
 	agent.changeState("SUPPORTER_STATE")
-	watchJobsErrCh := agent.watchForJobOffers()
+
+	executorTask := agent.advertiseAndRenewExecutorRoleT()
+	jobExecutorTask := agent.watchForJobOffersT()
 	// [etcd leader watcher] return electForLeader
 	// [etcd jobOffer watcher] competeForJobExecution
-	<- watchJobsErrCh
+	for {
+		select {
+		case err := <-task.FirstError(
+							agent.ListenUserCancelTask(),
+							executorTask,
+							jobExecutorTask):
+			agent.lastError = err
+			return errorStateFn
+		}
+	}
+}
+
+
+func errorStateFn(agent *Agent) handleStateFn {
+	agent.logf("Entered in recovery mode due to error: %s", agent.lastError.Error())
+	agent.stopTasks()
 	return nil
 }

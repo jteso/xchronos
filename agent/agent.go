@@ -5,7 +5,9 @@ import (
 	"log"
 	"time"
 	"github.com/jteso/xchronos/Godeps/_workspace/src/github.com/coreos/go-etcd/etcd"
+	"github.com/jteso/xchronos/task"
 	"strconv"
+	"sync"
 )
 
 const (
@@ -21,12 +23,33 @@ var(
 )
 
 
+
+
 type Agent struct {
+	// agent's id
 	ID         string
+	// Agent's state
 	state     string
+	// Used to communicate to etcd cluster
 	etcdClient *etcd.Client
+	// See all the etcd nodes available in the cluster
 	etcdNodes  []string
+	// Debugging flag
 	verbose bool
+	// Manager of the all tasks running on the background by an agent
+	taskManager []*task.Task
+	// Last error reported by the agent, or agent's task
+	lastError error
+
+	// receiving job offers channel pending to be executed
+	jobC chan *etcd.Response
+	// stop watching for jobs
+	jobStopC chan bool
+
+	// Signal by ui to stop all registered tasks
+	haltTaskC chan struct{}
+	// Signal back to ui, indicating when all registered tasks have stopped
+	haltedC chan struct{}
 
 	executorTicker *time.Ticker
 }
@@ -38,14 +61,9 @@ func New(id string, etcdNodes []string, verbose bool) *Agent {
 		state: 	   "INIT",
 		etcdNodes: etcdNodes,
 		verbose: verbose,
+		haltTaskC: make(chan struct{}),
+		taskManager: []*task.Task{},
 	}
-}
-
-// panic function will force an agent to stop its execution, due to some
-// unrecoverable error found.
-func (a *Agent) panic(format string, args ...interface{}) handleStateFn {
-	fmt.Printf(format, args)
-	return nil
 }
 
 func (a *Agent) Run() error {
@@ -93,77 +111,141 @@ func (a *Agent) changeState(newState string){
 	a.state = newState
 }
 
-// registerAsExecutor function will make the agent to offer itself to execute jobs been offered.
+
+
+func (a *Agent) advertiseAndRenewLeaderRoleT() *task.Task {
+	key := SCHEDULER_ELECTION_KEY
+	t := task.New("leaderRenewal", func() error{
+		a.log("Renewing my leader role...")
+		_, err := a.etcdClient.Set(key, a.ID, SCHEDULER_LEADER_TTL)
+		return err
+	})
+	t.RunEvery(time.Second * HEARTBEAT)
+	a.registerTask(t)
+	return t
+}
+// takeExecutorRole function will make the agent to offer itself to execute jobs been offered.
 // this offering is been done by writing periodically (HEARTBEAT) into the etcd dir /executors
 // this function will returned via chan any error is encountered, and this agent can be stop been
 // offered as an executor by stopping the agents executorTicker.
-func (a *Agent) registerAsExecutor() (errCh chan error){
-	errCh = make(chan error, 1)
-	key := EXECUTORS_DIR + "/" + a.ID
-
-	a.log("Registered as executor. key=" + key)
-
-	var err error
-	a.executorTicker = time.NewTicker(time.Second * HEARTBEAT)
-	go func() {
-		for {
-			<- a.executorTicker.C
-			_, err = a.etcdClient.Set(key, "up" , EXECUTOR_TTL)
-			if err != nil {
-				a.executorTicker.Stop()
-				errCh <- err
-			}
-		}
-	}()
-
-	return errCh
+func (a *Agent) advertiseAndRenewExecutorRoleT() *task.Task{
+	t := task.New("executorRenewal", func() error{
+		a.log("Renewing my executor role...")
+		_, err := a.etcdClient.Set(EXECUTORS_DIR + "/" + a.ID, "up" , EXECUTOR_TTL)
+		return err
+	})
+	t.RunEvery(time.Second * HEARTBEAT)
+	a.registerTask(t)
+	return t
 }
 
-func (a *Agent) publishJobOffers() (errCh chan error){
-	errCh = make(chan error, 1)
+func (a *Agent) publishJobOffersT() *task.Task{
 	jobId := 0
-	var key string
-
-	a.log("Waiting for scheduler to start publishing jobs...")
-
-	var err error
-	jobTicker := time.NewTicker(1 * time.Second)
-	go func() {
-		for {
-			<- jobTicker.C
-			key = JOBS_DIR + "/agent_1/" + strconv.Itoa(jobId)
-			a.log("Publishing job: "+ key)
-			_, err = a.etcdClient.Set(key, "pending", 0)
-			jobId ++
-
-			if err != nil {
-				jobTicker.Stop()
-				errCh <- err
-			}
-		}
-	}()
-
-	return errCh
+	t := task.New("jobOffersPublisher", func() error{
+		key := JOBS_DIR + "/agent_1/" + strconv.Itoa(jobId)
+		_, err := a.etcdClient.Set(key, "pending", 0)
+		jobId++
+		return err
+	})
+	t.RunEvery(time.Second * 1)
+	a.registerTask(t)
+	return t
 }
 
-func (a *Agent) watchForJobOffers() (errCh chan error){
-	watchChan := make(chan *etcd.Response)
-	key := fmt.Sprintf("%s/%s", JOBS_DIR, "agent_1")
-	a.log(fmt.Sprintf("Waiting for jobs on: %s", key))
-	go a.etcdClient.Watch(key, 0, true, watchChan, nil)
-	for {
-		r := <-watchChan
-		a.log(fmt.Sprintf("Job received: %s", r.Node.Key))
-	}
+func (a *Agent) watchForJobOffersT() *task.Task{
+	t := task.New("jobOffersWatcher", func() error {
+		key := fmt.Sprintf("%s/%s", JOBS_DIR, "agent_1")
 
-	return nil
+		a.jobC = make(chan *etcd.Response, 1)
+		a.jobStopC = make (chan bool, 1)
+		a.etcdClient.Watch(key, 0, true, a.jobC, a.jobStopC)
+		for {
+			r,ok := <- a.jobC
+			if !ok{
+				a.log("Seems that the channel has been closed")
+				return nil
+			}
+			// Job Received
+			a.logf("Job received: %s", r.Node.Key)
+		}
+		return nil
+	})
+	t.PostStopFn(func(){
+		a.jobStopC <- true
+	})
+	t.RunOnce()
+	a.registerTask(t)
+	return t
 }
 
 func (a *Agent) log(message string) {
 	if a.verbose {
 		log.Printf("[%s] %s\n", a.ID, message)
-
 	}
 }
+
+func (a *Agent) logf(format string, v...interface{}) {
+	if a.verbose {
+		a.log(fmt.Sprintf(format, v...))
+	}
+}
+
+func (a *Agent) registerTask(newTask *task.Task) {
+	if len(a.taskManager) == 0 {
+		a.logf("Setting up the task manager")
+		// internal to the task manager that captures cancelation signals
+		// from users and trigger the stop of all tasks
+		t:= task.New("_taskManager", func() error {
+				<- a.haltTaskC
+				return task.ErrUserCanceled
+			})
+		t.RunOnce()
+		a.taskManager = append(a.taskManager, t)
+	}
+	if a.verbose {
+		a.logf("New Task registered: %s", newTask.Id)
+	}
+	a.taskManager = append(a.taskManager, newTask)
+}
+
+func (a *Agent) ListenUserCancelTask() *task.Task {
+	return a.taskManager[0]
+}
+
+func (a *Agent) Stop(){
+	a.haltTaskC <- struct{}{}
+	a.haltedC = make(chan struct{}, 1)
+	<- a.haltedC
+	a.logf("Agent halted")
+}
+
+
+func (a *Agent) stopTasks() {
+	a.logf("Stopping all running tasks...")
+
+	var done sync.WaitGroup
+	done.Add(len(a.taskManager)) //_taskManager does not need to stop
+
+	for _,t := range a.taskManager{
+		go func(task *task.Task){
+			a.logf("Task: %s stopping...", task.Id)
+			task.Stop()
+			a.logf("Task: %s stopped", task.Id)
+			done.Done()
+		}(t)
+	}
+
+	a.logf("Waiting for %d tasks to stop...", len(a.taskManager))
+	done.Wait()
+
+	a.taskManager = a.taskManager[:0]
+	a.logf("Sending signal to halt...")
+	a.haltedC <- struct{}{}
+
+
+}
+
+
+
 
 
