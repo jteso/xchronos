@@ -32,31 +32,20 @@ func candidateStateFn(agent *Agent) handleStateFn {
 }
 
 func leaderStateFn(agent *Agent) handleStateFn {
-	//	defer func(){
-	//		agent.StopPublishJobOffers()
-	//		agent.StopWatchForJobOffers()
-	//
-	//	}()
 	agent.changeState("LEADER_STATE")
 
-	// Advertise and renew the roles of this agent in etcd
 	leaderTask := agent.advertiseAndRenewLeaderRoleT()
-	executorTask := agent.advertiseAndRenewExecutorRoleT()
-
-	// Tasks to be done as a scheduler leader
-	//agent.SetupScheduler()
+	//TODO: agent.SetupScheduler()
 	jobPublisherTask := agent.publishJobOffersT()
 
-	// Tasks to be done as an executor
+	executorTask := agent.advertiseAndRenewExecutorRoleT()
 	jobExecutorTask := agent.watchForJobOffersT()
-
-	// Keep the lights on as an agent
 	watchNewLeaderTask := agent.watchForNewLeaderElectionT()
 
 	for {
 		select {
 		case err := <-task.FirstError(
-			agent.ListenUserCancelTask(),
+			agent.listenUICancelTask(), //ErrUserCanceled
 			leaderTask,
 			jobPublisherTask,
 			executorTask,
@@ -75,12 +64,12 @@ func supporterStateFn(agent *Agent) handleStateFn {
 
 	executorTask := agent.advertiseAndRenewExecutorRoleT()
 	jobExecutorTask := agent.watchForJobOffersT()
-	// Keep the lights on as an agent
 	watchNewLeaderTask := agent.watchForNewLeaderElectionT()
+
 	for {
 		select {
 		case err := <-task.FirstError(
-			agent.ListenUserCancelTask(),
+			agent.listenUICancelTask(), //ErrUserCanceled
 			executorTask,
 			jobExecutorTask):
 
@@ -94,7 +83,8 @@ func supporterStateFn(agent *Agent) handleStateFn {
 }
 
 func errorStateFn(agent *Agent) handleStateFn {
-	agent.logf("Entered in recovery mode due to error: %s", agent.lastError.Error())
+	agent.changeState("RECOVERY_MODE_STATE")
+	agent.logf("Error: %s", agent.lastError.Error())
 	agent.stopTasks()
 	return nil
 }

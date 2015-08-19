@@ -222,7 +222,7 @@ func (a *Agent) registerTask(newTask *task.Task) {
 	a.taskManager = append(a.taskManager, newTask)
 }
 
-func (a *Agent) ListenUserCancelTask() *task.Task {
+func (a *Agent) listenUICancelTask() *task.Task {
 	return a.taskManager[0]
 }
 
