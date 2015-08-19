@@ -1,3 +1,5 @@
 .idea/*
 *.iml
 core-*.etcd/*
+bin/*
+pkg/*
