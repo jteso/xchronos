@@ -1,16 +1,17 @@
 package main
 
-
-import(
-	"github.com/jteso/xchronos/agent"
-	"runtime"
-	"os"
+import (
 	"flag"
-	"time"
+	"os"
+	"runtime"
+
+	"github.com/jteso/xchronos/agent"
+
 	"fmt"
+	"time"
 )
 
-const(
+const (
 	FLAG_ETCD_NODES = "etcd-nodes"
 )
 
@@ -19,9 +20,8 @@ func main() {
 	os.Exit(realMain())
 }
 
-
-func parseFlags() map[string] string {
-	result := make(map[string] string)
+func parseFlags() map[string]string {
+	result := make(map[string]string)
 
 	etcdNodes := flag.String(FLAG_ETCD_NODES, "", "Comma separated list of etcd nodes")
 	flag.Parse()
@@ -30,16 +30,15 @@ func parseFlags() map[string] string {
 	return result
 }
 
-func realMain() int{
+func realMain() int {
 	flags := parseFlags()
 
 	a1 := agent.New("agent_1", []string{flags[FLAG_ETCD_NODES]}, true)
 	a2 := agent.New("agent_2", []string{flags[FLAG_ETCD_NODES]}, true)
 
-	
 	go a1.Run()
 	go a2.Run()
-	
+
 	time.Sleep(10 * time.Second)
 	a1.Stop()
 	a2.Stop()

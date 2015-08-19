@@ -26,7 +26,8 @@ type Task struct {
 	// Force to stop a running task.
 	killC chan struct{}
 
-	postStopFn func()
+
+	onStopFn func()
 }
 
 func New(id string, fn func() error) *Task {
@@ -35,7 +36,7 @@ func New(id string, fn func() error) *Task {
 		fn: fn,
 		errC: make(chan error, 1),
 		stopC: make(chan chan struct{}, 1),
-		postStopFn: func(){},
+		onStopFn: func(){},
 	}
 }
 
@@ -46,17 +47,20 @@ func NewDummy() *Task {
 	})
 }
 
-// Stop gracefully a running task.
-// Keep in mind that if task is scheduled to run once, this stop will have
-// no effect
+// Stop gracefully a running task. i.e. this function will stop any timer or ticker may be running
+// Keep in mind that this function will no close any channels may have been opened inside the task.
+// See `OnStopFn()`
 func (t *Task) Stop() {
 	ackC := make(chan struct{}, 1)
 	t.stopC <- ackC
 	<- ackC
+	t.onStopFn()
 }
 
-func (t *Task) PostStopFn(callback func()) {
-	t.postStopFn = callback
+// Callback invoked right after the task has ack-ed the cancelation signal. It may be use to close any channels
+// may have been opened inside the task.
+func (t *Task) OnStopFn(callback func()) {
+	t.onStopFn = callback
 }
 
 // implements the ErrorChanReader
@@ -69,7 +73,6 @@ func (t *Task) RunOnce() *Task{
 	go func() {
 		ackC:= <- t.stopC
 		ackC <- struct{}{}
-		t.postStopFn()
 		t.errC <- ErrUserCanceled
 	}()
 
@@ -89,7 +92,6 @@ func (t *Task) RunEvery(dur time.Duration) *Task{
 			case ackC := <- t.stopC:
 				tkr.Stop()
 				ackC <- struct{}{}
-				t.postStopFn()
 				t.errC <- ErrUserCanceled
 				break
 			case <-tkr.C:
@@ -103,9 +105,9 @@ func (t *Task) RunEvery(dur time.Duration) *Task{
 }
 
 
-// === collection of tasks
+// === collection of tasks ===
 
-// Given a number of tasks `ErrorChanReader`-ables, this function will return the
+// Given a number of tasks `ErrorChanReader`-ables, this function will emit the
 // first error reported by any of them
 func FirstError(tasks ...ErrorChanReader) chan error{
 	firstErrC := make(chan error, 1)
