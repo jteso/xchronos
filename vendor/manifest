@@ -1,0 +1,19 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/coreos/go-etcd/etcd",
+			"repository": "https://github.com/coreos/go-etcd",
+			"revision": "126041ef7b24a28359a12f8bf7f6a7db6756113d",
+			"branch": "master",
+			"path": "/etcd"
+		},
+		{
+			"importpath": "github.com/ugorji/go/codec",
+			"repository": "https://github.com/ugorji/go",
+			"revision": "5abd4e96a45c386928ed2ca2a7ef63e2533e18ec",
+			"branch": "master",
+			"path": "/codec"
+		}
+	]
+}
