@@ -39,7 +39,7 @@ func realMain() int {
 	go a1.Run()
 	go a2.Run()
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(1000 * time.Second)
 	a1.Stop()
 	a2.Stop()
 

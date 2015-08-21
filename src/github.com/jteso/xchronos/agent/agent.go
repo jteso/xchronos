@@ -27,6 +27,8 @@ var (
 type Agent struct {
 	// agent's id
 	ID string
+	// internal ip
+	ipV4 string
 	// Agent's state
 	state string
 	// Last error reported by the agent, or agent's task
@@ -55,8 +57,14 @@ type Agent struct {
 
 // etcdNotes = strings.Split(os.Getenv("ETCD_NOTES"), ",")
 func New(id string, etcdNodes []string, verbose bool) *Agent {
+	localIp, err := GetLocalIPv4()
+	if err != nil {
+		panic(err)
+	}
+
 	return &Agent{
 		ID:          id,
+		ipV4:        localIp,
 		state:       "INIT",
 		etcdNodes:   etcdNodes,
 		verbose:     verbose,
@@ -80,7 +88,7 @@ func (a *Agent) Run() error {
 // - false, err: error
 func (a *Agent) runForLeader() (bool, error) {
 	// Put value if prevExist=false
-	_, err := a.etcdClient.Create(SCHEDULER_ELECTION_KEY, a.ID, SCHEDULER_LEADER_TTL)
+	_, err := a.etcdClient.Create(SCHEDULER_ELECTION_KEY, a.ipV4, SCHEDULER_LEADER_TTL)
 
 	if err != nil {
 		if etcdError, ok := err.(*etcd.EtcdError); ok {
@@ -114,7 +122,7 @@ func (a *Agent) advertiseAndRenewLeaderRoleT() *task.Task {
 	key := SCHEDULER_ELECTION_KEY
 	t := task.New("leaderRenewal", func() error {
 		a.log("Renewing my leader role...")
-		_, err := a.etcdClient.Set(key, a.ID, SCHEDULER_LEADER_TTL)
+		_, err := a.etcdClient.Set(key, a.ipV4, SCHEDULER_LEADER_TTL)
 		return err
 	})
 	t.RunEvery(time.Second * HEARTBEAT)
