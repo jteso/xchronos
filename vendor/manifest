@@ -14,6 +14,18 @@
 			"revision": "5abd4e96a45c386928ed2ca2a7ef63e2533e18ec",
 			"branch": "master",
 			"path": "/codec"
+		},
+		{
+			"importpath": "github.com/jteso/crypto",
+			"repository": "https://github.com/jteso/crypto",
+			"revision": "6fefdd655e2d7e15253bdd3dae3676c690960ab3",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/jteso/task",
+			"repository": "https://github.com/jteso/task",
+			"revision": "a91da4ca918e5b121302724c05097f06c19ccbd0",
+			"branch": "master"
 		}
 	]
 }

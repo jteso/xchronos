@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jteso/xchronos/task"
+	"github.com/jteso/task"
 
 	"github.com/coreos/go-etcd/etcd"
 )

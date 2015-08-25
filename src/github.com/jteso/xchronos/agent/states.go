@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"github.com/jteso/xchronos/task"
+	"github.com/jteso/task"
 )
 
 // agentStateFn represents the state of an agent as a function
