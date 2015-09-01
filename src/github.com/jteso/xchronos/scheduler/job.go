@@ -20,16 +20,29 @@
 
 package scheduler
 
+import "time"
+
+// Any job will have to implement this interface
+type Runnable interface {
+	Run() error
+	GetNextRunAt() time.Time
+}
+
 func EmptyJob() *Job {
 	return &Job{}
 }
 
 type Job struct {
-	id string
+	Id        string
+	nextRunAt time.Time
 }
 
 func NewJob(id string) *Job {
 	return &Job{
-		id: id,
+		Id: id,
 	}
+}
+
+func (j *Job) GetNextRunAt() time.Time {
+	return j.nextRunAt
 }

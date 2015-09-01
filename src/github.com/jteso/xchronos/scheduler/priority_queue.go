@@ -40,10 +40,6 @@ func newItem(job *Job, priority int64) *item {
 	}
 }
 
-func (i *item) String() string {
-	return fmt.Sprintf("<item job:%s priority:%d>", i.job, i.priority)
-}
-
 // NewPQueue creates a new priority queue with the provided pqtype
 // ordering type
 func NewPQueue(pqType PQType) *PQueue {
@@ -165,4 +161,8 @@ func (pq *PQueue) sink(k int) {
 		pq.exch(k, j)
 		k = j
 	}
+}
+
+func (pq *PQueue) String() string {
+	return fmt.Sprintf("[%+v]", pq.items)
 }
