@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -95,4 +97,78 @@ func TestSkipFutureJobsCurrentBucket(t *testing.T) {
 	j3 := calq.Next()
 	assert(t, j3.Id == job3.Id, "Job.id expected <%s> actual <%s>", job3.Id, j3.Id)
 	calq.Dequeue(j3)
+}
+
+// -------
+// Benchmark for calendar queue
+// -------
+
+// go test -bench=. (it will execute tests)
+// got test -run=XXX -bench=.  -benchtime=20s (it will skip the tests)
+func enqueueRandomEvent(num int) {
+	bucketWidth := int64(3600)
+	bucketLen := 3
+	calq := NewCalq(bucketWidth, bucketLen)
+
+	var job *Job
+	for i := 0; i < num; i++ {
+		job = &Job{
+			Id:        strconv.Itoa(i),
+			nextRunAt: now().Add(time.Duration(rand.Intn(100000000)) * time.Minute),
+		}
+		calq.Enqueue(job)
+	}
+}
+
+func benchmarkCalq(i int, b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		enqueueRandomEvent(i) // enqueue i random events
+	}
+}
+
+// func BenchmarkCalq10(b *testing.B) {
+// 	benchmarkCalq(10, b)
+// }
+
+// func BenchmarkCalq20(b *testing.B) {
+// 	benchmarkCalq(20, b)
+// }
+
+// func BenchmarkCalq50(b *testing.B) {
+// 	benchmarkCalq(50, b)
+// }
+
+// func BenchmarkCalq100(b *testing.B) {
+// 	benchmarkCalq(100, b)
+// }
+
+// func BenchmarkCalq500(b *testing.B) {
+// 	benchmarkCalq(500, b)
+// }
+
+// func BenchmarkCalq1000(b *testing.B) {
+// 	benchmarkCalq(1000, b)
+// }
+// func BenchmarkCalq2000(b *testing.B) {
+// 	benchmarkCalq(2000, b)
+// }
+
+func BenchmarkCalq5000(b *testing.B) {
+	benchmarkCalq(5000, b)
+}
+
+func BenchmarkCalq50000(b *testing.B) {
+	benchmarkCalq(50000, b)
+}
+
+func BenchmarkCalq500000(b *testing.B) {
+	benchmarkCalq(500000, b)
+}
+
+func BenchmarkCalq1000000(b *testing.B) {
+	benchmarkCalq(1000000, b)
+}
+
+func BenchmarkCalq100000000(b *testing.B) {
+	benchmarkCalq(100000000, b)
 }

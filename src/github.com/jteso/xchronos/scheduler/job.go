@@ -46,3 +46,12 @@ func NewJob(id string) *Job {
 func (j *Job) GetNextRunAt() time.Time {
 	return j.nextRunAt
 }
+
+// WaitSecs returns number of secs to wait until job is due to run
+func (j *Job) WaitSecs() int64 {
+	secs := j.GetNextRunAt().Sub(time.Now()).Seconds()
+	if secs < 0 {
+		return 0
+	}
+	return secs
+}

@@ -1,5 +1,6 @@
 package agent
 
+// implementation of the state machine that govern the behaviour of an agent
 import (
 	"github.com/jteso/task"
 )

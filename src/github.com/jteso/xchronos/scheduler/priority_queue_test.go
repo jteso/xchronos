@@ -1,10 +1,12 @@
 package scheduler
 
 import (
+	"math/rand"
 	"reflect"
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestMaxPQueue_init(t *testing.T) {
@@ -246,4 +248,71 @@ func TestMinPQueueHead_returns_min_element(t *testing.T) {
 
 	assertEqual(t, value, NewJob("1"), "pqueue.Head().value = %v; want %v", value, "1")
 	assert(t, priority == 1, "pqueue.Head().priority = %d; want %d", priority, 1)
+}
+
+// -------
+// Benchmark for priority queue
+// -------
+func enqueueRandomJob(num int) {
+	pqueue := NewPQueue(MINPQ)
+
+	var job *Job
+	for i := 0; i < num; i++ {
+		job = NewJob(strconv.Itoa(i))
+
+		pqueue.Push(job, (now().Add(time.Duration(rand.Intn(100000000)) * time.Minute).UnixNano()))
+	}
+}
+
+func benchmarkPQueue(i int, b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		enqueueRandomEvent(i) // enqueue i random events
+	}
+}
+
+// func BenchmarkPQueue10(b *testing.B) {
+// 	benchmarkPQueue(10, b)
+// }
+
+// func BenchmarkPQueue20(b *testing.B) {
+// 	benchmarkPQueue(20, b)
+// }
+
+// func BenchmarkPQueue50(b *testing.B) {
+// 	benchmarkPQueue(50, b)
+// }
+
+// func BenchmarkPQueue100(b *testing.B) {
+// 	benchmarkPQueue(100, b)
+// }
+
+// func BenchmarkPQueue500(b *testing.B) {
+// 	benchmarkPQueue(500, b)
+// }
+
+// func BenchmarkPQueue1000(b *testing.B) {
+// 	benchmarkPQueue(1000, b)
+// }
+// func BenchmarkPQueue2000(b *testing.B) {
+// 	benchmarkPQueue(2000, b)
+// }
+
+// func BenchmarkPQueue5000(b *testing.B) {
+// 	benchmarkPQueue(5000, b)
+// }
+
+// func BenchmarkPQueue50000(b *testing.B) {
+// 	benchmarkPQueue(50000, b)
+// }
+
+func BenchmarkPQueue500000(b *testing.B) {
+	benchmarkPQueue(500000, b)
+}
+
+func BenchmarkPQueue1000000(b *testing.B) {
+	benchmarkPQueue(1000000, b)
+}
+
+func BenchmarkPQueue100000000(b *testing.B) {
+	benchmarkPQueue(100000000, b)
 }

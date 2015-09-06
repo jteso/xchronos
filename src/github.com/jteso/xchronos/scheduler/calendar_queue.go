@@ -63,6 +63,7 @@ func (c *Calq) Next() *Job {
 	c.mutexEvents.Unlock()
 
 	// lets iterate over all the buckets of the calendar queue, starting from current bucket (relative to time.Now) and from cycle 0 onwards
+	// until we find the next due job to be run
 	return c.findNextJob(0, c.headBucket(), 0)
 }
 
@@ -110,7 +111,9 @@ func (c *Calq) allocateBucket(unixNano int64) int {
 	runOnSec := (unixNano - time.Now().UnixNano()) / time.Second.Nanoseconds()
 	//fmt.Printf("-- runOnSec: %d\n", runOnSec)
 	x := (runOnSec / c.bucketWidth) % int64(len(c.buckets))
-
+	if int(x) > len(c.buckets) {
+		fmt.Printf("\n\n====> x=%d expected less that num buckets=%d!!\n\n", int(x), len(c.buckets))
+	}
 	return int(x)
 }
 
