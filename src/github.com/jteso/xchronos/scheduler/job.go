@@ -20,7 +20,11 @@
 
 package scheduler
 
-import "time"
+import (
+	"bytes"
+	"encoding/gob"
+	"time"
+)
 
 // Any job will have to implement this interface
 type Runnable interface {
@@ -34,7 +38,7 @@ func EmptyJob() *Job {
 
 type Job struct {
 	Id        string
-	nextRunAt time.Time
+	NextRunAt time.Time
 }
 
 func NewJob(id string) *Job {
@@ -43,15 +47,46 @@ func NewJob(id string) *Job {
 	}
 }
 
+func NewTestJob(id string, due int) *Job {
+	return &Job{
+		Id:        id,
+		NextRunAt: time.Now().Add(time.Duration(due) * time.Second),
+	}
+}
+
 func (j *Job) GetNextRunAt() time.Time {
-	return j.nextRunAt
+	return j.NextRunAt
 }
 
 // WaitSecs returns number of secs to wait until job is due to run
-func (j *Job) WaitSecs() int64 {
+func (j *Job) WaitSecs() float64 {
 	secs := j.GetNextRunAt().Sub(time.Now()).Seconds()
 	if secs < 0 {
 		return 0
 	}
 	return secs
+}
+
+// Bytes returns the byte representation of the Job.
+func (j Job) Bytes() ([]byte, error) {
+	buff := new(bytes.Buffer)
+	enc := gob.NewEncoder(buff)
+	err := enc.Encode(j)
+	if err != nil {
+		return nil, err
+	}
+	return buff.Bytes(), nil
+}
+
+// NewFromBytes returns a Job instance from a byte representation.
+func NewFromBytes(b []byte) (*Job, error) {
+	j := &Job{}
+
+	buf := bytes.NewBuffer(b)
+	err := gob.NewDecoder(buf).Decode(j)
+	if err != nil {
+		return nil, err
+	}
+
+	return j, nil
 }

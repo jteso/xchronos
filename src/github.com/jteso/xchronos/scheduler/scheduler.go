@@ -1,65 +1,42 @@
 package scheduler
 
-import "time"
-
-//github.com/gorhill/cronexpr
-type JobPublisher interface {
-	Publish(*Job) error
-}
-
-type EtcdPublisher struct {
-	etcdPubPath string
-}
-
-func NewEtcdPublisher(pubPath string) *EtcdPublisher {
-	return &EtcdPublisher{
-		etcdPubPath: pubPath,
-	}
-}
-func (this *EtcdPublisher) Publish(j *Job) error {
-	// TODO: publish job onto etcd
-}
+import (
+	"sync"
+	"time"
+)
 
 type Scheduler struct {
 	// Cache of all jobs
 	jobQueue *PQueue
-	// Chan to receive new jobs to schedule
-	newJobsC chan *Job
-	// job publisher
-	jobPublisher JobPublisher
+	mutex    *sync.Mutex
 }
 
-func New() *Scheduler {
+func NewScheduler() *Scheduler {
 	return &Scheduler{
-		jobQueue:     NewPQueue(MAXPQ),
-		newJobsC:     make(chan *Job, 10),
-		jobPublisher: NewEtcdPublisher(pubPath),
+		jobQueue: NewPQueue(MINPQ),
+		mutex:    &sync.Mutex{},
 	}
 }
 
-func (s *Scheduler) Start() error {
-	go s.jobReceive()
-	go s.jobPublisher()
+func (s *Scheduler) NextJob() *Job {
+	return s.popAndWait()
 }
 
-func (s *Scheduler) EnqueueJob(j *Job) {
-	s.newJobsC <- j
+func (s *Scheduler) Enqueue(job *Job) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.jobQueue.Push(job)
 }
 
-func (s *Scheduler) jobReceive(j *Job) {
-	for {
-		select {
-		case j <- s.newJobsC:
-			s.jobQueue.Push(j, j.GetNextRunAt())
-		}
+func (s *Scheduler) popAndWait() *Job {
+	s.mutex.Lock()
+	job, _ := s.jobQueue.Pop()
+	if job == nil {
+		return nil
 	}
-}
+	s.mutex.Unlock()
+	waitSec := job.WaitSecs()
+	time.Sleep(time.Duration(waitSec) * time.Second)
+	return job
 
-func (s *Scheduler) jobPublisher() {
-	for {
-		job, _ := s.jobQueue.Pop()
-		waitSec := job.WaitSecs()
-		time.Sleep(waitSec)
-		s.jobPublisher.Publish(job)
-	}
 }

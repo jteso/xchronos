@@ -46,7 +46,6 @@ func leaderStateFn(agent *Agent) handleStateFn {
 	for {
 		select {
 		case err := <-task.FirstError(
-			agent.listenUICancelTask(), //ErrUserCanceled
 			leaderTask,
 			jobPublisherTask,
 			executorTask,
@@ -70,7 +69,6 @@ func supporterStateFn(agent *Agent) handleStateFn {
 	for {
 		select {
 		case err := <-task.FirstError(
-			agent.listenUICancelTask(), //ErrUserCanceled
 			executorTask,
 			jobExecutorTask):
 

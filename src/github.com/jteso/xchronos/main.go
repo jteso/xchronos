@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	FLAG_ETCD_NODES = "etcd-nodes"
+	ETCD_NODES = "etcd-nodes"
 )
 
 func main() {
@@ -23,18 +23,18 @@ func main() {
 func parseFlags() map[string]string {
 	result := make(map[string]string)
 
-	etcdNodes := flag.String(FLAG_ETCD_NODES, "", "Comma separated list of etcd nodes")
+	etcdNodes := flag.String(ETCD_NODES, "", "Comma separated list of etcd nodes")
 	flag.Parse()
 
-	result[FLAG_ETCD_NODES] = *etcdNodes
+	result[ETCD_NODES] = *etcdNodes
 	return result
 }
 
 func realMain() int {
 	flags := parseFlags()
 
-	a1 := agent.New("agent_1", []string{flags[FLAG_ETCD_NODES]}, true)
-	a2 := agent.New("agent_2", []string{flags[FLAG_ETCD_NODES]}, true)
+	a1 := agent.New("agent_1", []string{flags[ETCD_NODES]}, true)
+	a2 := agent.New("agent_2", []string{flags[ETCD_NODES]}, true)
 
 	go a1.Run()
 	go a2.Run()

@@ -24,7 +24,13 @@
 		{
 			"importpath": "github.com/jteso/task",
 			"repository": "https://github.com/jteso/task",
-			"revision": "a91da4ca918e5b121302724c05097f06c19ccbd0",
+			"revision": "0e9389b4afd3f9578c2265d83cf17f2217026c5d",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/jteso/testify",
+			"repository": "https://github.com/jteso/testify",
+			"revision": "7c2b1e5640dcf2631213ca962d892bffa1e08860",
 			"branch": "master"
 		}
 	]

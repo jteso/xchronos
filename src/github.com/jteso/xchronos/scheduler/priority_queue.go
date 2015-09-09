@@ -19,7 +19,7 @@ const (
 type item struct {
 	// Job
 	job *Job
-	// number of secs elapsed since Jan 1, 1970 UTC
+	// nanosecs elapsed since Jan 1, 1970 UTC
 	priority int64
 }
 
@@ -62,8 +62,8 @@ func NewPQueue(pqType PQType) *PQueue {
 }
 
 // Push the job item into the priority queue with provided priority.
-func (pq *PQueue) Push(job *Job, priority int64) {
-	item := newItem(job, priority)
+func (pq *PQueue) Push(job *Job) {
+	item := newItem(job, job.GetNextRunAt().UnixNano())
 
 	pq.Lock()
 	pq.items = append(pq.items, item)

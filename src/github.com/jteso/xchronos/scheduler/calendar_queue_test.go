@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/jteso/testify/assert"
 )
 
 func now() time.Time {
@@ -18,11 +20,11 @@ func TestBucketAllocation(t *testing.T) {
 
 	// job due now
 	now := time.Now()
-	assert(t, calq.allocateBucket(now.UnixNano()) == 0, "it should be zero")
-	assert(t, calq.allocateBucket(now.Add(61*time.Minute).UnixNano()) == 1, "it should be one")
-	assert(t, calq.allocateBucket(now.Add(121*time.Minute).UnixNano()) == 2, "it should be two")
-	assert(t, calq.allocateBucket(now.Add(181*time.Minute).UnixNano()) == 0, "it should be zero")
-	assert(t, calq.allocateBucket(now.Add(241*time.Minute).UnixNano()) == 1, "it should be one")
+	assert.Equal(t, calq.allocateBucket(now.UnixNano()), 0, "it should be zero")
+	assert.Equal(t, calq.allocateBucket(now.Add(61*time.Minute).UnixNano()), 1, "it should be one")
+	assert.Equal(t, calq.allocateBucket(now.Add(121*time.Minute).UnixNano()), 2, "it should be two")
+	assert.Equal(t, calq.allocateBucket(now.Add(181*time.Minute).UnixNano()), 0, "it should be zero")
+	assert.Equal(t, calq.allocateBucket(now.Add(241*time.Minute).UnixNano()), 1, "it should be one")
 }
 
 func TestCalendarqueue(t *testing.T) {
@@ -34,11 +36,11 @@ func TestCalendarqueue(t *testing.T) {
 	// jobs
 	job1 := &Job{
 		Id:        "1",
-		nextRunAt: now.Add(-2 * time.Second),
+		NextRunAt: now.Add(-2 * time.Second),
 	}
 	job2 := &Job{
 		Id:        "2",
-		nextRunAt: now.Add(61 * time.Minute),
+		NextRunAt: now.Add(61 * time.Minute),
 	}
 
 	calq.Enqueue(job1)
@@ -46,13 +48,12 @@ func TestCalendarqueue(t *testing.T) {
 
 	j := calq.Next()
 
-	assert(t, j != nil, "Job cannot be nil")
-	assert(t, j.Id == "1", "Job.id expected <%s> actual <%s>", job1.Id, j.Id)
+	assert.NotNil(t, j, nil)
+	assert.Equal(t, j.Id, "1")
 
 	// keep in mind that next is just peeking the value, not popping it
 	j = calq.Next()
-	assert(t, j.Id == "1", "Job.id expected <%s> actual <%s>", job2.Id, j.Id)
-
+	assert.Equal(t, j.Id, "1")
 	calq.Dequeue(j)
 
 	//j2 := calq.Next()
@@ -67,17 +68,17 @@ func TestSkipFutureJobsCurrentBucket(t *testing.T) {
 	// bucket 0
 	job1 := &Job{
 		Id:        "1",
-		nextRunAt: now().Add(-2 * time.Second),
+		NextRunAt: now().Add(-2 * time.Second),
 	}
 	// bucket 1
 	job2 := &Job{
 		Id:        "2",
-		nextRunAt: now().Add(61 * time.Minute),
+		NextRunAt: now().Add(61 * time.Minute),
 	}
 	// bucket 0
 	job3 := &Job{
 		Id:        "3",
-		nextRunAt: now().Add(181 * time.Minute),
+		NextRunAt: now().Add(181 * time.Minute),
 	}
 
 	calq.Enqueue(job1)
@@ -87,15 +88,15 @@ func TestSkipFutureJobsCurrentBucket(t *testing.T) {
 	// Execution order should be job1, job2, job3
 	// So ensure the bucket 0 will not schedule the job3 before the job2
 	j1 := calq.Next()
-	assert(t, j1.Id == job1.Id, "Job.id expected <%s> actual <%s>", job1.Id, j1.Id)
+	assert.Equal(t, j1.Id, job1.Id)
 	calq.Dequeue(j1)
 
 	j2 := calq.Next()
-	assert(t, j2.Id == job2.Id, "Job.id expected <%s> actual <%s>", job2.Id, j2.Id)
+	assert.Equal(t, j2.Id, job2.Id)
 	calq.Dequeue(j2)
 
 	j3 := calq.Next()
-	assert(t, j3.Id == job3.Id, "Job.id expected <%s> actual <%s>", job3.Id, j3.Id)
+	assert.Equal(t, j3.Id, job3.Id)
 	calq.Dequeue(j3)
 }
 
@@ -114,7 +115,7 @@ func enqueueRandomEvent(num int) {
 	for i := 0; i < num; i++ {
 		job = &Job{
 			Id:        strconv.Itoa(i),
-			nextRunAt: now().Add(time.Duration(rand.Intn(100000000)) * time.Minute),
+			NextRunAt: now().Add(time.Duration(rand.Intn(100000000)) * time.Minute),
 		}
 		calq.Enqueue(job)
 	}

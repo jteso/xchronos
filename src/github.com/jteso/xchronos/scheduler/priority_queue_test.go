@@ -7,62 +7,27 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jteso/testify/assert"
 )
 
 func TestMaxPQueue_init(t *testing.T) {
 	pqueue := NewPQueue(MAXPQ)
 
-	assert(
-		t,
-		len(pqueue.items) == 1,
-		"len(pqueue.items) == %d; want %d", len(pqueue.items), 1,
-	)
+	assert.Equal(t, len(pqueue.items), 1, "incorrect queue length")
+	assert.Equal(t, pqueue.Size(), 0, "incorrect queue length")
+	assert.Nil(t, pqueue.items[0])
 
-	assert(
-		t,
-		pqueue.Size() == 0,
-		"pqueue.Size() = %d; want %d", pqueue.Size(), 0,
-	)
-
-	assert(
-		t,
-		pqueue.items[0] == nil,
-		"pqueue.items[0] = %v; want %v", pqueue.items[0], nil,
-	)
-
-	assert(
-		t,
-		reflect.ValueOf(pqueue.comparator).Pointer() == reflect.ValueOf(max).Pointer(),
-		"pqueue.comparator != max",
-	)
+	assert.Equal(t, reflect.ValueOf(pqueue.comparator).Pointer(), reflect.ValueOf(max).Pointer(), "pqueue.comparator != max")
 }
 
 func TestMinPQueue_init(t *testing.T) {
 	pqueue := NewPQueue(MINPQ)
 
-	assert(
-		t,
-		len(pqueue.items) == 1,
-		"len(pqueue.items) = %d; want %d", len(pqueue.items), 1,
-	)
-
-	assert(
-		t,
-		pqueue.Size() == 0,
-		"pqueue.Size() = %d; want %d", pqueue.Size(), 0,
-	)
-
-	assert(
-		t,
-		pqueue.items[0] == nil,
-		"pqueue.items[0] = %v; want %v", pqueue.items[0], nil,
-	)
-
-	assert(
-		t,
-		reflect.ValueOf(pqueue.comparator).Pointer() == reflect.ValueOf(min).Pointer(),
-		"pqueue.comparator != min",
-	)
+	assert.Equal(t, len(pqueue.items), 1)
+	assert.Equal(t, pqueue.Size(), 0)
+	assert.Nil(t, pqueue.items[0])
+	assert.Equal(t, reflect.ValueOf(pqueue.comparator).Pointer(), reflect.ValueOf(min).Pointer())
 }
 
 func TestMaxPQueuePushAndPop_protects_max_order(t *testing.T) {
@@ -72,29 +37,19 @@ func TestMaxPQueuePushAndPop_protects_max_order(t *testing.T) {
 	// Populate the test priority queue with dummy elements
 	// in asc ordered.
 	for i := 0; i < pqueueSize; i++ {
-		value := NewJob(strconv.Itoa(i))
-		priority := int64(i)
-
-		pqueue.Push(value, priority)
+		value := NewTestJob(strconv.Itoa(i), i)
+		pqueue.Push(value)
 	}
 
 	containerIndex := 1 // binary heap are 1 indexed
 	for i := 99; i >= 0; i-- {
-		expectedValue := NewJob(strconv.Itoa(i))
+		expectedValue := NewTestJob(strconv.Itoa(i), i)
 		expectedPriority := int64(i)
 
 		// Avoiding testing arithmetics headaches by using the pop function directly
 		value, priority := pqueue.Pop()
-		assert(
-			t,
-			reflect.DeepEqual(value, expectedValue),
-			"value = %v; want %v", containerIndex, value, expectedValue,
-		)
-		assert(
-			t,
-			priority == expectedPriority,
-			"priority = %v; want %v", containerIndex, priority, expectedValue,
-		)
+		assert.Equal(t, value, expectedValue)
+		assert.Equal(t, priority, expectedPriority)
 
 		containerIndex++
 	}
@@ -114,9 +69,8 @@ func TestMaxPQueuePushAndPop_concurrently_protects_max_order(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 
-			value := NewJob(strconv.Itoa(i))
-			priority := int64(i)
-			pqueue.Push(value, priority)
+			value := NewTestJob(strconv.Itoa(i), i)
+			pqueue.Push(value)
 		}(i)
 	}
 
@@ -124,21 +78,13 @@ func TestMaxPQueuePushAndPop_concurrently_protects_max_order(t *testing.T) {
 
 	containerIndex := 1 // binary heap are 1 indexed
 	for i := 99; i >= 0; i-- {
-		expectedValue := NewJob(strconv.Itoa(i))
+		expectedValue := NewTestJob(strconv.Itoa(i), i)
 		expectedPriority := int64(i)
 
 		// Avoiding testing arithmetics headaches by using the pop function directly
 		value, priority := pqueue.Pop()
-		assert(
-			t,
-			reflect.DeepEqual(value, expectedValue),
-			"value = %v; want %v", containerIndex, value, expectedValue,
-		)
-		assert(
-			t,
-			priority == expectedPriority,
-			"priority = %v; want %v", containerIndex, priority, expectedValue,
-		)
+		assert.Equal(t, value, expectedValue)
+		assert.Equal(t, priority, expectedPriority)
 
 		containerIndex++
 	}
@@ -151,28 +97,18 @@ func TestMinPQueuePushAndPop_protects_min_order(t *testing.T) {
 	// Populate the test priority queue with dummy elements
 	// in asc ordered.
 	for i := 0; i < pqueueSize; i++ {
-		value := NewJob(strconv.Itoa(i))
-		priority := int64(i)
-
-		pqueue.Push(value, priority)
+		value := NewTestJob(strconv.Itoa(i), i)
+		pqueue.Push(value)
 	}
 
 	for i := 0; i < pqueueSize; i++ {
-		expectedValue := NewJob(strconv.Itoa(i))
+		expectedValue := NewTestJob(strconv.Itoa(i), i)
 		expectedPriority := int64(i)
 
 		// Avoiding testing arithmetics headaches by using the pop function directly
 		value, priority := pqueue.Pop()
-		assert(
-			t,
-			reflect.DeepEqual(value, expectedValue),
-			"value = %v; want %v", value, expectedValue,
-		)
-		assert(
-			t,
-			priority == expectedPriority,
-			"priority = %v; want %v", priority, expectedValue,
-		)
+		assert.Equal(t, value, expectedValue)
+		assert.Equal(t, priority, expectedPriority)
 	}
 }
 
@@ -190,64 +126,53 @@ func TestMinPQueuePushAndPop_concurrently_protects_min_order(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 
-			value := NewJob(strconv.Itoa(i))
-			priority := int64(i)
+			value := NewTestJob(strconv.Itoa(i), i)
 
-			pqueue.Push(value, priority)
+			pqueue.Push(value)
 		}(i)
 	}
 
 	wg.Wait()
 
 	for i := 0; i < pqueueSize; i++ {
-		expectedValue := NewJob(strconv.Itoa(i))
+		expectedValue := NewTestJob(strconv.Itoa(i), i)
 		expectedPriority := int64(i)
 
 		// Avoiding testing arithmetics headaches by using the pop function directly
 		value, priority := pqueue.Pop()
-		assert(
-			t,
-			reflect.DeepEqual(value, expectedValue),
-			"value = %v; want %v", value, expectedValue,
-		)
-		assert(
-			t,
-			priority == expectedPriority,
-			"priority = %v; want %v", priority, expectedValue,
-		)
+		assert.Equal(t, value, expectedValue)
+		assert.Equal(t, priority, expectedPriority)
 	}
 }
 
 func TestMaxPQueueHead_returns_max_element(t *testing.T) {
 	pqueue := NewPQueue(MAXPQ)
 
-	pqueue.Push(NewJob("1"), 1)
-	pqueue.Push(NewJob("2"), 2)
+	pqueue.Push(NewTestJob("1", 1))
+	pqueue.Push(NewTestJob("2", 2))
 
 	value, priority := pqueue.Head()
 
 	// First element of the binary heap is always left empty, so container
 	// size is the number of elements actually stored + 1
-	assert(t, len(pqueue.items) == 3, "len(pqueue.items) = %d; want %d", len(pqueue.items), 3)
-
-	assertEqual(t, value, NewJob("2"), "pqueue.Head().value = %v; want %v", value, "2")
-	assert(t, priority == 2, "pqueue.Head().priority = %d; want %d", priority, 2)
+	assert.Equal(t, len(pqueue.items), 3)
+	assert.Equal(t, value, NewTestJob("2", 2))
+	assert.Equal(t, priority, 2)
 }
 
 func TestMinPQueueHead_returns_min_element(t *testing.T) {
 	pqueue := NewPQueue(MINPQ)
 
-	pqueue.Push(NewJob("1"), 1)
-	pqueue.Push(NewJob("2"), 2)
+	pqueue.Push(NewTestJob("1", 1))
+	pqueue.Push(NewTestJob("2", 2))
 
 	value, priority := pqueue.Head()
 
 	// First element of the binary heap is always left empty, so container
 	// size is the number of elements actually stored + 1
-	assert(t, len(pqueue.items) == 3, "len(pqueue.items) = %d; want %d", len(pqueue.items), 3)
-
-	assertEqual(t, value, NewJob("1"), "pqueue.Head().value = %v; want %v", value, "1")
-	assert(t, priority == 1, "pqueue.Head().priority = %d; want %d", priority, 1)
+	assert.Equal(t, len(pqueue.items), 3)
+	assert.Equal(t, value, NewTestJob("1", 1))
+	assert.Equal(t, priority, 1)
 }
 
 // -------
@@ -259,8 +184,9 @@ func enqueueRandomJob(num int) {
 	var job *Job
 	for i := 0; i < num; i++ {
 		job = NewJob(strconv.Itoa(i))
+		job.NextRunAt = now().Add(time.Duration(rand.Intn(100000000)) * time.Minute)
 
-		pqueue.Push(job, (now().Add(time.Duration(rand.Intn(100000000)) * time.Minute).UnixNano()))
+		pqueue.Push(job)
 	}
 }
 

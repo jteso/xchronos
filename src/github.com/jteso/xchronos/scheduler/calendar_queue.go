@@ -11,7 +11,7 @@ import (
 // A bucket is defined as  a list with a
 // specified range of admission times
 type Bucket interface {
-	Push(job *Job, priority int64)
+	Push(job *Job)
 	Pop() (*Job, int64)
 	Head() (*Job, int64)
 	String() string
@@ -78,7 +78,7 @@ func (c *Calq) Enqueue(job *Job) {
 	// Resolve the bucket
 	bucketId := c.allocateBucket(scheduledNs)
 	// Enqueue it in the priority queue for that bucket
-	c.buckets[bucketId].Push(job, job.GetNextRunAt().UnixNano())
+	c.buckets[bucketId].Push(job)
 	// Increasing number of events
 	c.mutexEvents.Lock()
 	c.totalEvents = c.totalEvents + 1
