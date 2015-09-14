@@ -192,7 +192,7 @@ func enqueueRandomJob(num int) {
 
 func benchmarkPQueue(i int, b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		enqueueRandomEvent(i) // enqueue i random events
+		enqueueRandomJob(i) // enqueue i random events
 	}
 }
 

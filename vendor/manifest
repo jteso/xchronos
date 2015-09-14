@@ -32,6 +32,25 @@
 			"repository": "https://github.com/jteso/testify",
 			"revision": "7c2b1e5640dcf2631213ca962d892bffa1e08860",
 			"branch": "master"
+		},
+		{
+			"importpath": "github.com/davecgh/go-spew/spew",
+			"repository": "https://github.com/davecgh/go-spew",
+			"revision": "2df174808ee097f90d259e432cc04442cf60be21",
+			"branch": "master",
+			"path": "/spew"
+		},
+		{
+			"importpath": "github.com/hashicorp/hcl",
+			"repository": "https://github.com/hashicorp/hcl",
+			"revision": "54864211433d45cb780682431585b3e573b49e4a",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/hashicorp/go-multierror",
+			"repository": "https://github.com/hashicorp/go-multierror",
+			"revision": "56912fb08d85084aa318edcf2bba735b97cf35c5",
+			"branch": "master"
 		}
 	]
 }

@@ -13,16 +13,25 @@ import (
 type Agent struct {
 	// agent's id
 	ID string
+
 	// internal ip
 	IPv4 string
+
 	// Agent's state
 	state string
-	// Last error reported by the agent, or agent's task
-	lastError error
+
 	// Used to communicate to etcd cluster
 	clusterClient cluster.ClusterClient
+
 	// Manager of the all tasks running on the background by an agent
 	taskManager *task.TaskManager
+
+	// Last error reported by the agent, or agent's task
+	lastError error
+
+	// internal scheduler
+	jobScheduler *scheduler.Scheduler
+
 	// Debugging flag
 	verbose bool
 }
@@ -39,9 +48,9 @@ func New(id string, etcdNodes []string, verbose bool) *Agent {
 		IPv4:          localIp,
 		state:         "INIT",
 		clusterClient: cluster.NewEtcdClient(etcdNodes),
-		verbose:       verbose,
-		haltTaskC:     make(chan struct{}),
 		taskManager:   task.NewTaskManager(),
+		jobScheduler:  scheduler.NewScheduler(),
+		verbose:       verbose,
 	}
 }
 
@@ -49,7 +58,6 @@ func (a *Agent) Run() error {
 	for stateHandler := startStateFn; stateHandler != nil; {
 		stateHandler = stateHandler(a)
 	}
-	//close(a.stopCh)
 	return nil
 }
 
@@ -57,12 +65,12 @@ func (a *Agent) runForLeader() (bool, error) {
 	return a.clusterClient.SchedulerElect(a.IPv4)
 }
 
-func (a *Agent) connectEtcdCluster() error {
+func (a *Agent) connectCluster() error {
 	return a.clusterClient.Connect()
 }
 
-func (a *Agent) disconnectEtcdCluster() error {
-	return a.clusterClient.Disconnect()
+func (a *Agent) disconnectCluster() {
+	a.clusterClient.Disconnect()
 }
 
 func (a *Agent) changeState(newState string) {
@@ -70,47 +78,66 @@ func (a *Agent) changeState(newState string) {
 	a.state = newState
 }
 
-func (a *Agent) advertiseAndRenewLeaderRoleT() *task.Task {
-	key := SCHEDULER_ELECTION_KEY
-	t := task.New("leaderRenewal", func() error {
+func (a *Agent) advertiseSchedulerRoleTask() *task.Task {
+	t := task.New("advertiseSchedulerRoleTask", func() error {
 		a.log("Renewing my leader role...")
 		_, err := a.clusterClient.SchedulerElect(a.IPv4)
 		return err
 	})
-	t.RunEvery(time.Second * HEARTBEAT)
+	t.RunEvery(time.Second * cluster.HEARTBEAT)
 	a.taskManager.RegisterTask(t)
 	return t
 }
 
-// takeExecutorRole function will make the agent to offer itself to execute jobs been offered.
+func (a *Agent) runSchedulerTask() *task.Task {
+	dueJobC := make(chan *scheduler.Job, 10)
+	stopDueJobC := make(chan bool)
+
+	t := task.New("runSchedulerTask", func() error {
+		a.jobScheduler.Notify(dueJobC, stopDueJobC)
+		for job := range dueJobC {
+			// TODO(jteso): publish the job for execution
+			fmt.Printf("publishing job: %v ...", job)
+		}
+		return nil
+	})
+	t.OnStopFn(func() {
+		stopDueJobC <- true
+	})
+	t.RunOnce()
+	a.taskManager.RegisterTask(t)
+	return t
+}
+
+// this function will make the agent to offer itself to execute jobs been offered.
 // this offering is been done by writing periodically (HEARTBEAT) into the etcd dir /executors
 // this function will returned via chan any error is encountered, and this agent can be stop been
 // offered as an executor by stopping the agents executorTicker.
-func (a *Agent) advertiseAndRenewExecutorRoleT() *task.Task {
-	t := task.New("executorRenewal", func() error {
+func (a *Agent) advertiseExecutorRoleTask() *task.Task {
+	t := task.New("advertiseExecutorRoleTask", func() error {
 		a.log("Renewing my executor role...")
-		_, err := a.clusterClient.RegisterAsExecutor(a.ID, a.IPv4)
-		return err
+		return a.clusterClient.RegisterAsExecutor(a.ID, a.IPv4)
 	})
-	t.RunEvery(time.Second * HEARTBEAT)
+
+	t.RunEvery(time.Second * cluster.HEARTBEAT)
 	a.taskManager.RegisterTask(t)
 	return t
 }
 
-func (a *Agent) publishJobOffersT(job *Job) *task.Task {
-	t := task.New("jobOffersPublisher", func() error {
-		return a.clusterClient.MakeJobOffer(job)
-	})
+// func (a *Agent) publishJobOffersT(job *Job) *task.Task {
+// 	t := task.New("jobOffersPublisher", func() error {
+// 		return a.clusterClient.MakeJobOffer(job)
+// 	})
 
-	t.RunEvery(time.Second * 1)
-	a.taskManager.RegisterTask(t)
-	return t
-}
+// 	t.RunEvery(time.Second * 1)
+// 	a.taskManager.RegisterTask(t)
+// 	return t
+// }
 
-func (a *Agent) watchForJobOffersT() *task.Task {
+func (a *Agent) watchForJobOffersTask() *task.Task {
 	jobOfferC := make(chan *scheduler.Job, 1)
 	jobOfferStopC := make(chan bool, 1)
-	t := task.New("jobOffersWatcher", func() error {
+	t := task.New("watchForJobOffersTask", func() error {
 		a.clusterClient.WatchJobOffers(jobOfferC, jobOfferStopC)
 		var jobOffer *scheduler.Job
 		for {
@@ -129,12 +156,12 @@ func (a *Agent) watchForJobOffersT() *task.Task {
 	return t
 }
 
-func (a *Agent) watchForNewLeaderElectionT() *task.Task {
+func (a *Agent) watchForSchedulerFailureTask() *task.Task {
 	notifyC := make(chan bool, 1)
 	watchLeaderStopC := make(chan bool, 1)
 
-	t := task.New("watchLeaderElection", func() error {
-		a.clusterClient.NotifySchedulerStepDown(notifyC, watchLeaderStopC)
+	t := task.New("watchForSchedulerFailureTask", func() error {
+		a.clusterClient.SchedulerFailureWatcher(notifyC, watchLeaderStopC)
 		<-notifyC
 		return nil
 	})
@@ -153,27 +180,6 @@ func (a *Agent) Stop() {
 	<-doneC
 	a.logf("Agent halted")
 }
-
-// func (a *Agent) registerTask(newTask *task.Task) {
-// 	if len(a.taskManager) == 0 {
-// 		// internal to the task manager that captures cancelation signals
-// 		// from users and trigger the stop of all tasks
-// 		t := task.New("uiTask", func() error {
-// 			<-a.haltTaskC
-// 			return task.ErrUserCanceled
-// 		})
-// 		t.RunOnce()
-// 		a.taskManager = append(a.taskManager, t)
-// 	}
-// 	if a.verbose {
-// 		a.logf("New Task registered: %s", newTask.Id)
-// 	}
-// 	a.taskManager = append(a.taskManager, newTask)
-// }
-
-// func (a *Agent) listenUICancelTask() *task.Task {
-// 	return a.taskManager[0]
-// }
 
 func (a *Agent) log(message string) {
 	if a.verbose {

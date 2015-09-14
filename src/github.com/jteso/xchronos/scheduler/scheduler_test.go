@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"fmt"
 	"strconv"
 	"testing"
 
@@ -20,17 +19,23 @@ func TestHappyScheduler(t *testing.T) {
 		sch.Enqueue(mockJobs[i])
 	}
 
+	assert.Equal(t, sch.Size(), 3)
+
 	// Dequeue all the mock jobs
-	var job *Job
-	for j := 0; j < totalJobs; j++ {
-		job = sch.NextJob()
-		fmt.Printf("--> Received job_id=%s\n", job.Id)
-		assert.Equal(t, job.Id, strconv.Itoa(j), "Received the wrong job")
+	cont := 0
+	dueJobC := make(chan *Job, 10)
+	stopC := make(chan bool)
+	sch.Notify(dueJobC, stopC)
+
+	for job := range dueJobC {
+		assert.Equal(t, job.Id, strconv.Itoa(cont), "Received the wrong job")
+		cont += 1
+		if cont == totalJobs {
+			stopC <- true
+		}
 	}
 
-	// Make sure no more jobs are pending
-	next := sch.NextJob()
-	assert.Nil(t, next)
+	assert.Equal(t, sch.Size(), 0)
 }
 
 func jobGenerator(n int) []*Job {

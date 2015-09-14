@@ -11,7 +11,7 @@ type handleStateFn func(*Agent) handleStateFn
 
 func startStateFn(agent *Agent) handleStateFn {
 	agent.changeState("STARTING_STATE")
-	agent.connectEtcdCluster()
+	agent.connectCluster()
 
 	return candidateStateFn
 }
@@ -35,25 +35,26 @@ func candidateStateFn(agent *Agent) handleStateFn {
 func leaderStateFn(agent *Agent) handleStateFn {
 	agent.changeState("LEADER_STATE")
 
-	leaderTask := agent.advertiseAndRenewLeaderRoleT()
-	//TODO: agent.SetupScheduler()
-	jobPublisherTask := agent.publishJobOffersT()
+	// tasks as scheduler
+	schedulerRoleTask := agent.advertiseSchedulerRoleTask()
+	runSchedulerTask := agent.runSchedulerTask()
 
-	executorTask := agent.advertiseAndRenewExecutorRoleT()
-	jobExecutorTask := agent.watchForJobOffersT()
-	watchNewLeaderTask := agent.watchForNewLeaderElectionT()
+	// tasks as job executor
+	executorRoleTask := agent.advertiseExecutorRoleTask()
+	offersListenerTask := agent.watchForJobOffersTask()
+	schedulerFailureWatcherTask := agent.watchForSchedulerFailureTask()
 
 	for {
 		select {
 		case err := <-task.FirstError(
-			leaderTask,
-			jobPublisherTask,
-			executorTask,
-			jobExecutorTask):
+			schedulerRoleTask,
+			runSchedulerTask,
+			executorRoleTask,
+			offersListenerTask):
 
 			agent.lastError = err
 			return errorStateFn
-		case <-watchNewLeaderTask.ErrorChan():
+		case <-schedulerFailureWatcherTask.ErrorChan():
 			return candidateStateFn
 		}
 	}
@@ -62,19 +63,19 @@ func leaderStateFn(agent *Agent) handleStateFn {
 func supporterStateFn(agent *Agent) handleStateFn {
 	agent.changeState("SUPPORTER_STATE")
 
-	executorTask := agent.advertiseAndRenewExecutorRoleT()
-	jobExecutorTask := agent.watchForJobOffersT()
-	watchNewLeaderTask := agent.watchForNewLeaderElectionT()
+	executorRoleTask := agent.advertiseExecutorRoleTask()
+	offersListenerTask := agent.watchForJobOffersTask()
+	schedulerFailureWatcherTask := agent.watchForSchedulerFailureTask()
 
 	for {
 		select {
 		case err := <-task.FirstError(
-			executorTask,
-			jobExecutorTask):
+			executorRoleTask,
+			offersListenerTask):
 
 			agent.lastError = err
 			return errorStateFn
-		case <-watchNewLeaderTask.ErrorChan():
+		case <-schedulerFailureWatcherTask.ErrorChan():
 			return candidateStateFn
 
 		}
@@ -84,6 +85,6 @@ func supporterStateFn(agent *Agent) handleStateFn {
 func errorStateFn(agent *Agent) handleStateFn {
 	agent.changeState("RECOVERY_MODE_STATE")
 	agent.logf("Error: %s", agent.lastError.Error())
-	agent.stopTasks()
+	agent.Stop()
 	return nil
 }
