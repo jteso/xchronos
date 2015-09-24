@@ -1,90 +1,63 @@
 package agent
 
 // implementation of the state machine that govern the behaviour of an agent
-import (
-	"github.com/jteso/task"
-)
+import "github.com/jteso/xchronos/errors"
 
 // agentStateFn represents the state of an agent as a function
 // that returns the next state
 type handleStateFn func(*Agent) handleStateFn
 
 func startStateFn(agent *Agent) handleStateFn {
-	agent.changeState("STARTING_STATE")
-	agent.connectCluster()
+	agent.NotifyState("_connecting")
+	agent.ConnectCluster()
 
-	return candidateStateFn
+	return negotiateStateFn
 }
 
-func candidateStateFn(agent *Agent) handleStateFn {
-	agent.changeState("CANDIDATE_STATE")
-	leader, err := agent.runForLeader()
+func negotiateStateFn(agent *Agent) handleStateFn {
+	agent.NotifyState("_pending")
+	leader, err := agent.AttemptJobScheduler()
 
 	if err != nil {
 		agent.lastError = err
 		return errorStateFn
 	}
 	if leader {
-		return leaderStateFn
+		return schedulerStateFn
 	}
 
-	return supporterStateFn
+	return executorStateFn
 
 }
 
-func leaderStateFn(agent *Agent) handleStateFn {
-	agent.changeState("LEADER_STATE")
+func schedulerStateFn(agent *Agent) handleStateFn {
+	agent.NotifyState("_scheduler")
 
-	// tasks as scheduler
-	schedulerRoleTask := agent.advertiseSchedulerRoleTask()
-	runSchedulerTask := agent.runSchedulerTask()
+	err := <-agent.ActAsJobScheduler()
 
-	// tasks as job executor
-	executorRoleTask := agent.advertiseExecutorRoleTask()
-	offersListenerTask := agent.watchForJobOffersTask()
-	schedulerFailureWatcherTask := agent.watchForSchedulerFailureTask()
-
-	for {
-		select {
-		case err := <-task.FirstError(
-			schedulerRoleTask,
-			runSchedulerTask,
-			executorRoleTask,
-			offersListenerTask):
-
-			agent.lastError = err
-			return errorStateFn
-		case <-schedulerFailureWatcherTask.ErrorChan():
-			return candidateStateFn
-		}
+	if err != nil && err == errors.ErrNoSchedulerDetected {
+		return negotiateStateFn
+	} else {
+		return errorStateFn
 	}
+
 }
 
-func supporterStateFn(agent *Agent) handleStateFn {
-	agent.changeState("SUPPORTER_STATE")
+func executorStateFn(agent *Agent) handleStateFn {
+	agent.NotifyState("_executor")
 
-	executorRoleTask := agent.advertiseExecutorRoleTask()
-	offersListenerTask := agent.watchForJobOffersTask()
-	schedulerFailureWatcherTask := agent.watchForSchedulerFailureTask()
+	err := <-agent.ActAsJobExecutor()
 
-	for {
-		select {
-		case err := <-task.FirstError(
-			executorRoleTask,
-			offersListenerTask):
-
-			agent.lastError = err
-			return errorStateFn
-		case <-schedulerFailureWatcherTask.ErrorChan():
-			return candidateStateFn
-
-		}
+	if err != nil && err == errors.ErrNoSchedulerDetected {
+		return negotiateStateFn
+	} else {
+		return errorStateFn
 	}
+
 }
 
 func errorStateFn(agent *Agent) handleStateFn {
-	agent.changeState("RECOVERY_MODE_STATE")
-	agent.logf("Error: %s", agent.lastError.Error())
-	agent.Stop()
+	agent.NotifyState("_recovery_mode")
+	agent.Halt()
 	return nil
 }

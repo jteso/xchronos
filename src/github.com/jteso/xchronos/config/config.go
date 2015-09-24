@@ -7,7 +7,7 @@ import (
 
 type Config struct {
 	Version  string
-	JobStore string
+	JobStore []string
 	Jobs     []JobConfig
 }
 
@@ -19,8 +19,8 @@ type JobConfig struct {
 }
 
 type TriggerConfig struct {
-	Cron          string
-	MaxExecutions string
+	Cron           string
+	Max_Executions string
 }
 
 // type OnErrorConfig struct {
@@ -33,6 +33,8 @@ func ParseConfig(hclText string) (*Config, error) {
 	var errors *multierror.Error
 
 	hclParseTree, err := hcl.Parse(hclText)
+	//log.Println(spew.Sdump(hclParseTree))
+
 	if err != nil {
 		return nil, err
 	}
@@ -42,6 +44,6 @@ func ParseConfig(hclText string) (*Config, error) {
 	config.Jobs = parseJobs(hclParseTree, errors)
 
 	//log.Println(spew.Sdump(config.Jobs))
-	//log.Println(spew.Sdump(hclParseTree))
+
 	return config, nil
 }

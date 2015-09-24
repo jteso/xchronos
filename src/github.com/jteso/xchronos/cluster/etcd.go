@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -12,14 +13,14 @@ const (
 	SCHEDULER_ELECTION_KEY    = "/zeitd/lock/scheduler"
 	JOB_OFFER_KEY             = "/zeitd/offers"
 	JOB_TAKER_KEY             = "/zeitd/lock/job"
-	EXECUTOR_REGISTRATION_KEY = "/zeitd/executor/ip"
-	JOB_PERSISTENCE_KEY       = "/zeitd/jobs/job"
+	EXECUTOR_REGISTRATION_KEY = "/zeitd/executor"
+	JOB_REGISTRATION_KEY      = "/zeitd/jobs"
 )
 
 var (
-	SCHEDULER_LEADER_TTL uint64        = 10 // max time running without leader
-	EXECUTOR_TTL         uint64        = 10 // max time running without a particular executor
-	HEARTBEAT            time.Duration = 5
+	SCHEDULER_LEADER_TTL uint64        = 30 // max time running without leader
+	EXECUTOR_TTL         uint64        = 60 // max time running without a particular executor
+	HEARTBEAT            time.Duration = 20
 	NO_TTL                             = uint64(0)
 )
 
@@ -47,7 +48,7 @@ func (e *EtcdProxy) Disconnect() {
 	e.etcdClient.Close()
 }
 
-func (e *EtcdProxy) SchedulerElect(ip string) (bool, error) {
+func (e *EtcdProxy) RegisterAsScheduler(ip string) (bool, error) {
 	_, err := e.etcdClient.Create(SCHEDULER_ELECTION_KEY, ip, SCHEDULER_LEADER_TTL)
 	if err != nil {
 		if etcdError, ok := err.(*etcd.EtcdError); ok {
@@ -71,28 +72,20 @@ func (e *EtcdProxy) SchedulerFailureWatcher(notifyC chan bool, stopC chan bool) 
 // Make a job offer in: (k,v) -> ($JOB_OFFERS/$job_id , job)
 func (e *EtcdProxy) MakeJobOffer(job *scheduler.Job) error {
 	key := fmt.Sprintf("%s/%s", JOB_OFFER_KEY, job.Id)
-	jobAsBytes, _ := job.Bytes()
-	_, err := e.etcdClient.Set(key, string(jobAsBytes), NO_TTL)
+	jobEncoded, _ := job.EncodeToString()
+	_, err := e.etcdClient.Set(key, jobEncoded, NO_TTL)
 	return err
 }
 
-// TODO: Reimplementation required
 func (e *EtcdProxy) WatchJobOffers(notify chan *scheduler.Job, stopC chan bool) {
-	// jobC := make(chan *etcd.Response, 1)
-	// defer close(jobC)
-	// e.etcdClient.Watch(JOB_OFFER_KEY, 0, true, jobC, stopC)
-	// for {
-	// 	r, ok := <-jobC
-	// 	if !ok {
-	// 		log.Print("jobC has been closed")
-	// 		break
-	// 	}
-	// 	// Job Received
-	// 	log.Printf("Offer registered: %s", r.Node.Key)
-	// 	job := NewFromBytes([]byte(r.Node.Value))
-	// 	notify <- job
-	// }
-
+	watchC := make(chan *etcd.Response, 10)
+	go e.etcdClient.Watch(JOB_OFFER_KEY, 0, true, watchC, stopC)
+	for change := range watchC {
+		// Notification received
+		job, _ := scheduler.DecodeFromString(change.Node.Value)
+		notify <- job
+	}
+	log.Print("watchC has been closed")
 }
 
 func (e *EtcdProxy) TakeJobOffer(job *scheduler.Job, ip string) bool {
@@ -111,8 +104,26 @@ func (e *EtcdProxy) RegisterAsExecutor(agentId, agentIp string) error {
 	return err
 }
 
-func (e *EtcdProxy) PersistJob(*scheduler.Job) error {
-	//TODO
+func (e *EtcdProxy) RegisterJob(job *scheduler.Job) error {
+	jobEncoded, _ := job.EncodeToString()
+	_, err := e.etcdClient.Set(fmt.Sprintf("%s/%s", JOB_REGISTRATION_KEY, job.Id), jobEncoded, NO_TTL)
+	return err
+}
+
+func (e *EtcdProxy) UnregisterJobs() error {
+	_, err := e.etcdClient.Delete(JOB_REGISTRATION_KEY, true)
+	return err
+}
+
+func (e *EtcdProxy) WatchJobsToSchedule(notify chan *scheduler.Job, stopC chan bool) error {
+	watchC := make(chan *etcd.Response, 50)
+	go e.etcdClient.Watch(JOB_REGISTRATION_KEY, 0, true, watchC, stopC)
+	
+	for change := range watchC {
+		//log.Printf("[etcd] new job found: %+v \n", change.Node.Value)
+		job, _ := scheduler.DecodeFromString(change.Node.Value)
+		notify <- job
+	}
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	multierror "github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/hcl"
 	hclObj "github.com/hashicorp/hcl/hcl"
 )
 
@@ -24,21 +25,25 @@ func parseVersion(hcltree *hclObj.Object, errors *multierror.Error) string {
 	return "*** Error"
 }
 
-func parseJobStore(hcltree *hclObj.Object, errors *multierror.Error) string {
-	if rawVersion := hcltree.Get("job_store", false); rawVersion != nil {
-		if rawVersion.Len() > 1 {
+func parseJobStore(hcltree *hclObj.Object, errors *multierror.Error) []string {
+	hosts := make([]string, 0)
+	if jobStore := hcltree.Get("job_store", false); jobStore != nil {
+		if jobStore.Len() > 1 {
 			errors = multierror.Append(errors, fmt.Errorf("job_store was specified more than once"))
 		} else {
-			if rawVersion.Type != hclObj.ValueTypeString {
-				errors = multierror.Append(errors, fmt.Errorf("job_store was specified as an invalid type - expected string, found %s", rawVersion.Type))
+			if jobStore.Type != hclObj.ValueTypeList {
+				errors = multierror.Append(errors, fmt.Errorf("job_store was specified as an invalid type - expected string, found %s", jobStore.Type))
 			} else {
-				return rawVersion.Value.(string)
+				for _, host := range jobStore.Elem(true) {
+					hosts = append(hosts, host.Value.(string))
+				}
+				return hosts
 			}
 		}
 	} else {
 		errors = multierror.Append(errors, fmt.Errorf("No job_store was specified in the configuration"))
 	}
-	return "*** Error"
+	return []string{}
 }
 
 func parseJobs(hcltree *hclObj.Object, errors *multierror.Error) []JobConfig {
@@ -80,12 +85,20 @@ func parseJob(jobNode *hclObj.Object, errors *multierror.Error) JobConfig {
 }
 
 func parseJobTrigger(jobNode *hclObj.Object, errors *multierror.Error) TriggerConfig {
-	cron := parseCron(jobNode.Get("trigger", false), errors)
-	maxExecs := parseMaxExecutions(jobNode.Get("trigger", false), errors)
-	return TriggerConfig{
-		Cron:          cron,
-		MaxExecutions: maxExecs,
+	var triggerConfig TriggerConfig
+	if t := jobNode.Get("trigger", false); t != nil {
+		err := hcl.DecodeObject(&triggerConfig, t)
+		if err != nil {
+			errors = multierror.Append(errors, err)
+		}
 	}
+	return triggerConfig
+	// cron := parseCron(jobNode.Get("trigger", false), errors)
+	// maxExecs := parseMaxExecutions(jobNode.Get("trigger", false), errors)
+	// return TriggerConfig{
+	// 	Cron:          cron,
+	// 	MaxExecutions: maxExecs,
+	// }
 }
 
 func parseExec(jobNode *hclObj.Object, errors *multierror.Error) string {

@@ -30,9 +30,8 @@ func (s *Scheduler) Notify(dueJobC chan *Job, stopC chan bool) {
 			default:
 				job := s.dequeue()
 				if job != nil {
-					log.Printf("waiting for job[%s] a total of %f secs...\n", job.Id, job.WaitSecs())
+					//log.Printf("Next job due for execution in %f secs...\n", job.WaitSecs())
 					time.Sleep(time.Duration(job.WaitSecs()) * time.Second)
-					log.Println("sending job for execution")
 					dueJobC <- job
 				} else {
 					//log.Printf("No more jobs available\n")
@@ -49,6 +48,7 @@ func (s *Scheduler) dequeue() *Job {
 	return job
 }
 
+// TODO(javier): check whether this job has been scheduled already before
 func (s *Scheduler) Enqueue(job *Job) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

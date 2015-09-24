@@ -1,0 +1,8 @@
+job "outbound_email_marketing_job" {
+    trigger {
+        cron = "0/10 * * * * *"
+        max_executions = -1
+    }
+    exec = "/bin/echo hola mundo!!!"
+    
+}

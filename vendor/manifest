@@ -16,12 +16,6 @@
 			"path": "/codec"
 		},
 		{
-			"importpath": "github.com/jteso/crypto",
-			"repository": "https://github.com/jteso/crypto",
-			"revision": "6fefdd655e2d7e15253bdd3dae3676c690960ab3",
-			"branch": "master"
-		},
-		{
 			"importpath": "github.com/jteso/task",
 			"repository": "https://github.com/jteso/task",
 			"revision": "0e9389b4afd3f9578c2265d83cf17f2217026c5d",
@@ -50,6 +44,24 @@
 			"importpath": "github.com/hashicorp/go-multierror",
 			"repository": "https://github.com/hashicorp/go-multierror",
 			"revision": "56912fb08d85084aa318edcf2bba735b97cf35c5",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/robfig/cron",
+			"repository": "https://github.com/robfig/cron",
+			"revision": "67823cd24dece1b04cced3a0a0b3ca2bc84d875e",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/codegangsta/cli",
+			"repository": "https://github.com/codegangsta/cli",
+			"revision": "a65b733b303f0055f8d324d805f393cd3e7a7904",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/jteso/crypto",
+			"repository": "https://github.com/jteso/crypto",
+			"revision": "012a31e39dbe09599e7e7db616725fe6ab000fab",
 			"branch": "master"
 		}
 	]

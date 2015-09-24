@@ -13,28 +13,31 @@ type ClusterClient interface {
 	// Disconnect from the discovery service
 	Disconnect()
 
-	// SchedulerElect function attempts to put a lock into the scheduler leadership key. It returns:
+	// RegisterAsScheduler function attempts to put a lock into the scheduler leadership key. It returns:
 	// (true, nil) iff invoker will become the leader
 	// (false, nil) iff invoker will become a supporter
-	SchedulerElect(ip string) (bool, error)
+	RegisterAsScheduler(ip string) (bool, error)
+
+	// Register the agent as an executor
+	RegisterAsExecutor(agentId, agentIp string) error
 
 	// It notifies when the scheduler election key has expired, ie. agent with scheduler role has failed
 	// to renew the key
 	SchedulerFailureWatcher(notify chan bool, stopC chan bool)
 
-	// Publish a job due to be executed immediately
-	MakeJobOffer(*scheduler.Job) error
-
 	// It notifes when a new offer has been published
 	WatchJobOffers(notify chan *scheduler.Job, stopC chan bool)
+
+	// Publish a job due to be executed immediately
+	MakeJobOffer(*scheduler.Job) error
 
 	// Declare the agent's intention to execute the job, by registering the agents ip
 	// return true if successful
 	TakeJobOffer(job *scheduler.Job, ip string) bool
 
-	// Register the agent as an executor
-	RegisterAsExecutor(agentId, agentIp string) error
+	// Ask the scheduler to enqueue the given job
+	RegisterJob(*scheduler.Job) error
 
-	// Persist all client scheduled jobs
-	PersistJob(*scheduler.Job) error
+	// Listen for new jobs to schedule in the local scheduler
+	WatchJobsToSchedule(notify chan *scheduler.Job, stopC chan bool) error
 }

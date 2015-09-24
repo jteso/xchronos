@@ -5,15 +5,17 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/jteso/testify/assert"
 )
 
 const testConfig = `
+
 version = "0.1"
-job_store = "etcd" 
+job_store = ["1.1.1.1", "2.2.2.2"] 
 
 job "outbound_email_marketing" {
     trigger = {
-        cron = "* * * * 0/30"
+        cron = "* * * * 0/10"
         max_executions = "-1"
     }
     exec = "~/bin/outbound-email.sh"
@@ -32,41 +34,33 @@ job "Partner_Feeds_ETL" {
 func TestConfigParsing(t *testing.T) {
 	expected := &Config{
 		Version:  "0.1",
-		JobStore: "etcd",
+		JobStore: []string{"1.1.1.1", "2.2.2.2"},
 		Jobs: []JobConfig{
 			JobConfig{
 				Name: "outbound_email_marketing",
 				Trigger: TriggerConfig{
-					Cron:          "* * * * 0/30",
-					MaxExecutions: "-1",
+					Cron:           "* * * * 0/10",
+					Max_Executions: "-1",
 				},
 				Exec: "~/bin/outbound-email.sh",
 			},
 			JobConfig{
 				Name: "Partner_Feeds_ETL",
 				Trigger: TriggerConfig{
-					Cron:          "* * * * 0/30",
-					MaxExecutions: "-1",
+					Cron:           "* * * * 0/30",
+					Max_Executions: "1",
 				},
 				Exec: "~/bin/partner-etl.sh",
 			},
 		},
 	}
 	config, err := ParseConfig(testConfig)
-	if err != nil {
-		log.Printf("*****\nError: %s\n", err.Error())
-		t.Error(err)
-	}
 
-	if config.Version != expected.Version {
-		t.Error("^^ Error here ^^")
-	}
-	if config.JobStore != expected.JobStore {
-		t.Error("^^ Error here^^")
-	}
-	if len(config.Jobs) != len(expected.Jobs) {
-		t.Error("Parsed incorrectly amount of jobs")
-	}
+	assert.Nil(t, err, "Problems parsing the config file")
+	assert.Equal(t, config.Version, expected.Version)
+	assert.Equal(t, config.JobStore, expected.JobStore)
+	assert.True(t, len(config.Jobs) == len(expected.Jobs))
+	assert.Equal(t, config.Jobs, expected.Jobs)
 
 	log.Println(spew.Sdump(config))
 	// if !reflect.DeepEqual(config.Jobs[1], expected.Jobs[1]) {

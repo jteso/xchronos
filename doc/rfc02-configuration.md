@@ -1,9 +1,15 @@
-#Configuration
+# RFC02 - Configuration
 
+1. Xchronosfile
 ```
 version = "0.1"
-job_store = "etcd" 
+etcd_nodes = ["10.1.1.1", "10.1.1.2"] 
 
+```
+
+2. <alias>.batch
+
+```
 job "outbound_email_marketing" {
     trigger {
         cron = "* * * * 0/30"
@@ -14,7 +20,5 @@ job "outbound_email_marketing" {
         max_retries = "3"
         abort_on_failure = true
     }
-
 }
-
 ```

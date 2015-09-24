@@ -2,7 +2,7 @@
 // file 'LICENSE.txt', which is part of this source code package.
 
 // Crypto package contains some crypto utilities
-package main
+package crypto
 
 import (
 	"crypto/md5"
@@ -14,7 +14,7 @@ import (
 )
 
 // generateUUID simply returns a UUID
-func generateUUID() (string, error) {
+func GenerateUUID() (string, error) {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
 		return "", fmt.Errorf("failed to read random bytes: %v", err)
@@ -30,7 +30,7 @@ func generateUUID() (string, error) {
 
 // computeMD5 returns the MD5 of the content
 // of a file passed
-func computeMd5(filePath string) (string, error) {
+func ComputeMd5(filePath string) (string, error) {
 	var result []byte
 	file, err := os.Open(filePath)
 	if err != nil {

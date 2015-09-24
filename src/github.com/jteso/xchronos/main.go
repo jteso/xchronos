@@ -1,14 +1,11 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"runtime"
 
-	"github.com/jteso/xchronos/agent"
-
-	"fmt"
-	"time"
+	"github.com/codegangsta/cli"
+	"github.com/jteso/xchronos/cmd"
 )
 
 const (
@@ -20,29 +17,23 @@ func main() {
 	os.Exit(realMain())
 }
 
-func parseFlags() map[string]string {
-	result := make(map[string]string)
-
-	etcdNodes := flag.String(ETCD_NODES, "", "Comma separated list of etcd nodes")
-	flag.Parse()
-
-	result[ETCD_NODES] = *etcdNodes
-	return result
-}
-
 func realMain() int {
-	flags := parseFlags()
-
-	a1 := agent.New("agent_1", []string{flags[ETCD_NODES]}, true)
-	a2 := agent.New("agent_2", []string{flags[ETCD_NODES]}, true)
-
-	go a1.Run()
-	go a2.Run()
-
-	time.Sleep(1000 * time.Second)
-	a1.Stop()
-	a2.Stop()
-
-	fmt.Println("System halted successfully :)")
+	app := cli.NewApp()
+	app.Name = "xchronos"
+	app.Version = "0.1-Alpha"
+	app.Usage = "Enabling your jobs to run in the cloud (public/private/hybrid)"
+	app.Flags = []cli.Flag{
+	//	cli.BoolFlag { Name: "debug", Usage: "output all cluster and agent activity"}
+	}
+	app.Commands = []cli.Command{
+		cmd.RunAgentCommand(),
+		//cmd.RunConsoleCommand(),
+		cmd.NewJobCommand(),
+		cmd.RmJobCommand(),
+	}
+	err := app.Run(os.Args)
+	if err != nil {
+		return 1
+	}
 	return 0
 }
